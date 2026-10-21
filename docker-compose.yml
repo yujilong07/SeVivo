@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: monitor
+      POSTGRES_USER: ${DB_USER:-monitor}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-monitor}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitor_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/monitor
+      DB_USER: ${DB_USER:-monitor}
+      DB_PASSWORD: ${DB_PASSWORD:-monitor}
+      CHECK_INTERVAL_MS: ${CHECK_INTERVAL_MS:-60000}
+      CONNECT_TIMEOUT_MS: ${CONNECT_TIMEOUT_MS:-3000}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-5000}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      - monitor_network
+    restart: unless-stopped
+
+networks:
+  monitor_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
